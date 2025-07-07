@@ -1,29 +1,33 @@
-# Dockerfile
-FROM python:3.11-slim
+# Stage 1: Build stage
+FROM python:3.11-slim as builder
 
-# Prevent Python from writing .pyc files to disk
-ENV PYTHONDONTWRITEBYTECODE=1
-# Prevent Python from buffering stdout/stderr
-ENV PYTHONUNBUFFERED=1
-
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y netcat-openbsd gcc libpq-dev
+# Copy requirements.txt first to leverage layer caching
+COPY requirements.txt .
 
-# Install python dependencies
-COPY requirements.txt /app/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install dependencies into user space (~/.local)
+RUN pip install --user --no-warn-script-location -r requirements.txt
 
-# Copy project files
-COPY . /app/
+# Stage 2: Final minimal runtime image
+FROM python:3.11-slim
 
-# Collect static files (optional)
-# RUN python manage.py collectstatic --noinput
+WORKDIR /app
 
-# Expose Django port
+# Install only necessary runtime system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends netcat-openbsd libpq5 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from build stage
+COPY --from=builder /root/.local /root/.local
+
+# Add ~/.local/bin to PATH so installed Python binaries are available
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy source code from local machine
+COPY . /app
+
+# Expose port and define CMD
 EXPOSE 8000
-
-# Default command (use overridden CMD in docker-compose)
 CMD ["gunicorn", "myproject.wsgi:application", "--bind", "0.0.0.0:8000"]
