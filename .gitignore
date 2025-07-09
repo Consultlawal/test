@@ -9,9 +9,9 @@
 .DS_Store
 
 # Environment
-.env
-.env.local
-.env.*
+# .env
+# .env.local
+# .env.*
 
 # Docker
 .docker/

@@ -1,25 +1,30 @@
-# Stage 1: Build stage
-FROM node:18 as builder
+# Stage 1: Builder
+FROM node:18 AS builder
 
 WORKDIR /app
 
-# Copy package.json and install dependencies
+# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy source files and build app (if needed)
+# Copy app source code
 COPY . .
-RUN npm run build  # Optional if you have a build step
 
-# Stage 2: Final minimal runtime image
-FROM node:18-alpine
+# Build Next.js app
+RUN npm run build
+
+# Stage 2: Runtime
+FROM node:18-alpine AS stage-1
 
 WORKDIR /app
 
 # Copy only necessary files from builder
+COPY --from=builder /app/.next ./.next/
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist/
+COPY --from=builder /app/node_modules ./node_modules/
 
+# Expose Next.js port
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+
+# Start the app
+CMD ["npm", "run", "start"]
